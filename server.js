@@ -14,6 +14,8 @@ const otpStore = {};
 
 // Middleware
 app.use(requestLogger);
+// turns the messy cookie text from the browser into a simple JavaScript object
+app.use(cookieParser());
 app.use(express.json());
 
 
@@ -48,8 +50,9 @@ app.post("/auth/login", (req, res) => {
 
     // Store OTP
     otpStore[loginSessionId] = otp;
-
-    console.log(`[OTP] Session ${loginSessionId} generated`);
+    
+    // Need to log the actual OTP number here
+    console.log(`[OTP] Session ${otp} generated`);
 
     return res.status(200).json({
       message: "OTP sent",
@@ -86,10 +89,11 @@ app.post("/auth/verify-otp", (req, res) => {
     if (parseInt(otp) !== otpStore[loginSessionId]) {
       return res.status(401).json({ error: "Invalid OTP" });
     }
-
+   
     res.cookie("session_token", loginSessionId, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
+      // secure: false,
       maxAge: 15 * 60 * 1000, // 15 minutes
     });
 
@@ -109,7 +113,8 @@ app.post("/auth/verify-otp", (req, res) => {
 
 app.post("/auth/token", (req, res) => {
   try {
-    const token = req.headers.authorization;
+    // reading from Authorization header, but client sends cookie
+    const token = req.cookies.session_token;
 
     if (!token) {
       return res
@@ -117,7 +122,7 @@ app.post("/auth/token", (req, res) => {
         .json({ error: "Unauthorized - valid session required" });
     }
 
-    const session = loginSessions[token.replace("Bearer ", "")];
+    const session = loginSessions[token];
 
     if (!session) {
       return res.status(401).json({ error: "Invalid session" });
